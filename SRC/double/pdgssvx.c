@@ -1024,7 +1024,6 @@ pdgssvx(superlu_dist_options_t *options, SuperMatrix *A,
 		        SUPERLU_FREE (R1);
 		        SUPERLU_FREE (C1);
 	              } else { /* job = 2,3,4 */
-					  fprintf(stdout, "[AC]\n"); fflush(stdout);
 		        for (j = 0; j < n; ++j) {
 		            for (i = colptr[j]; i < colptr[j+1]; ++i) {
 			        irow = rowind[i];
@@ -1159,41 +1158,48 @@ pdgssvx(superlu_dist_options_t *options, SuperMatrix *A,
 		  /* generate uncoarsened versions of GA and perm_c but also
 			 maintain the contracted versions */
 		  /* @EDIT-SYMATCH Add branch here */
-		  SuperMatrix GA_c;
-		  coarsen_graph(&GA, &GA_c, crs_info.n_crs, crs_info.crs_vrts);
-		  
-		  int_t *crs_perm_c =
-			  (int_t *)malloc(sizeof(*crs_perm_c) * GA_c.nrow);
-		  get_perm_c_dist(iam, permc_spec, &GA_c, crs_perm_c);
-		  
-		  fprintf(stdout, "Projecting back the coarse column permutation ... ");
-		  
-		  /* cumulative crs_vrts. */
-		  int_t *crs_vrts_cum = (int_t *) intMalloc_dist(crs_info.n_crs+1);
-		  crs_vrts_cum[0] = 0;
-		  for (i = 0; i < crs_info.n_crs; ++i)
-			  crs_vrts_cum[i+1] = crs_vrts_cum[i] + crs_info.crs_vrts[i];
-
-		  /* reverse perm. */
-		  int_t *rev_crs_perm_c = (int_t *) intMalloc_dist(crs_info.n_crs);
-		  for (i = 0; i < crs_info.n_crs; ++i)
-			  rev_crs_perm_c[crs_perm_c[i]] = i;
-
-		  int_t cur = 0;
-		  for (i = 0; i < crs_info.n_crs; ++i)
+		  if (options->RowPerm == SymMatch)
 		  {
-			  int_t rev_i = rev_crs_perm_c[i];
-			  for (j = crs_vrts_cum[rev_i]; j < crs_vrts_cum[rev_i+1]; ++j)
-				  perm_c[j] = cur++;
+			  SuperMatrix GA_c;
+			  coarsen_graph(&GA, &GA_c, crs_info.n_crs, crs_info.crs_vrts);
+
+			  int_t *crs_perm_c =
+				  (int_t *)malloc(sizeof(*crs_perm_c) * GA_c.nrow);
+			  get_perm_c_dist(iam, permc_spec, &GA_c, crs_perm_c);
+
+			  fprintf(stdout, "Projecting back the coarse column permutation ... ");
+
+			  /* cumulative crs_vrts. */
+			  int_t *crs_vrts_cum = (int_t *) intMalloc_dist(crs_info.n_crs+1);
+			  crs_vrts_cum[0] = 0;
+			  for (i = 0; i < crs_info.n_crs; ++i)
+				  crs_vrts_cum[i+1] = crs_vrts_cum[i] + crs_info.crs_vrts[i];
+
+			  /* reverse perm. */
+			  int_t *rev_crs_perm_c = (int_t *) intMalloc_dist(crs_info.n_crs);
+			  for (i = 0; i < crs_info.n_crs; ++i)
+				  rev_crs_perm_c[crs_perm_c[i]] = i;
+
+			  int_t cur = 0;
+			  for (i = 0; i < crs_info.n_crs; ++i)
+			  {
+				  int_t rev_i = rev_crs_perm_c[i];
+				  for (j = crs_vrts_cum[rev_i]; j < crs_vrts_cum[rev_i+1]; ++j)
+					  perm_c[j] = cur++;
+			  }
+
+			  SUPERLU_FREE(crs_vrts_cum);
+			  if (rev_crs_perm_c)
+				  SUPERLU_FREE(rev_crs_perm_c);
+
+			  check_perm_dist("uncoarsen_perm_c", GA.nrow, perm_c);
+
+			  fprintf(stdout, "DONE.\n"); fflush(stdout);
 		  }
-
-		  SUPERLU_FREE(crs_vrts_cum);
-		  if (rev_crs_perm_c)
-			  SUPERLU_FREE(rev_crs_perm_c);
-
-		  check_perm_dist("uncoarsen_perm_c", GA.nrow, perm_c);
-
-		  fprintf(stdout, "DONE.\n"); fflush(stdout);		  
+		  else
+		  {
+			  get_perm_c_dist(iam, permc_spec, &GA, perm_c);
+		  }
           }
         }
 
