@@ -152,6 +152,29 @@ speed. You can use it with the following cmake option:
 -DTPL_ENABLE_LAPACKLIB=ON
 ```
 
+
+### Symmetric matching.
+
+In order to use the symmetric matching for static pivoting, you first need to compile the Suitor matching library under ```matching/lib/matching``` by running:
+```
+make lib
+```
+
+Note that by default it uses the gcc compiler. Edit the Makefile if you want to change it.
+
+In order to use the matching within SuperLU, run the cmake command with these additional options:
+```
+-DTPL_ENABLE_SYMATCHLIB=ON
+-DTPL_SYMATCH_INCLUDE_DIRS="<superlu_dist-directory>/matching/symatch/inc;<superlu_dist-directory>/matching/symatch/util;<superlu_dist-directory>/matching/lib/matching"
+-DTPL_SYMATCH_LIBRARIES="<superlu_dist-directory>/matching/lib/matching/lib/libsuitor.a"
+```
+and compile as usual. Currently the example file under ```EXAMPLE/pddrive-v1.c``` uses the symmetric matching. The symmetric matching can be enabled by passing the option 
+```
+-p 4
+```
+to the executable.
+
+
 ### Use GPU
 You can enable (NVIDIA) GPU with CUDA with the following cmake option:
 ```
@@ -365,6 +388,7 @@ You can disable CombBLAS with the following line in SRC/superlu_dist_config.h:
 ```
 #undef HAVE_COMBBLAS
 ```
+
 
 ### 2.4. C preprocessor definition CDEFS. (Replaced by cmake module FortranCInterface.)
 
