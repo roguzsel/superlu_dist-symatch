@@ -602,6 +602,14 @@ extern int_t pdgstrs_delete_device_lsum_x(dSOLVEstruct_t *);
 extern void pxgstrs_finalize(pxgstrs_comm_t *);
 extern int  dldperm_dist(int, int, int_t, int_t [], int_t [],
 		    double [], int_t *, double [], double []);
+/* @EDIT-SYMATCH Begin */
+extern int  dldperm_dist_symatch(int, int, int_t, int_t [], int_t [],
+								 double [], int_t *, double [], double [],
+								 int_t *, int_t **);
+extern int coarsen_graph(SuperMatrix *G, SuperMatrix *G_c, int_t n, int_t *crs_vrts);
+extern void apply_perm_sym(int n, int_t nnz, int_t *colptr, int_t *adjncy,
+						   double *nzval, int_t *p);
+/* @EDIT-SYMATCH End */	
 extern int  dstatic_schedule(superlu_dist_options_t *, int, int,
 		            dLUstruct_t *, gridinfo_t *, SuperLUStat_t *,
 			    int_t *, int_t *, int *);

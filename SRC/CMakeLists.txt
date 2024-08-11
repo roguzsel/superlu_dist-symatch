@@ -195,6 +195,10 @@ if (HAVE_COMBBLAS)
   list(APPEND sources double/d_c2cpp_GetHWPM.cpp double/dHWPM_CombBLAS.hpp)
 endif()
 
+if (HAVE_SYMATCH)
+  list(APPEND sources double/dldperm_dist_symatch.cpp double/dldperm_dist_symatch.hpp)
+endif()
+
 endif() ########## enable double
 
 if(enable_single)
@@ -394,10 +398,10 @@ endif()
 
 if (TPL_ENABLE_NVSHMEM)
 set(superlu_dist_libs ${MPI_C_LIBRARIES} ${MPI_CXX_LIBRARIES} ${BLAS_LIB} ${LAPACK_LIB}
-    ${PARMETIS_LIB} ${COLAMD_LIB} ${COMBBLAS_LIB} ${MAGMA_LIB} ${CUDA_LIB} ${HIP_LIB} ${NVSHMEM_LIB}) 
+    ${PARMETIS_LIB} ${COLAMD_LIB} ${COMBBLAS_LIB} ${MAGMA_LIB} ${CUDA_LIB} ${HIP_LIB} ${NVSHMEM_LIB} ${SYMATCH_LIB}) 
 else()
 set(superlu_dist_libs ${MPI_C_LIBRARIES} ${MPI_CXX_LIBRARIES} ${BLAS_LIB} ${LAPACK_LIB}
-    ${PARMETIS_LIB} ${COLAMD_LIB} ${COMBBLAS_LIB} ${MAGMA_LIB} ${CUDA_LIB} ${HIP_LIB})
+    ${PARMETIS_LIB} ${COLAMD_LIB} ${COMBBLAS_LIB} ${MAGMA_LIB} ${CUDA_LIB} ${HIP_LIB} ${SYMATCH_LIB})
 endif()
 
 if (NOT MSVC)

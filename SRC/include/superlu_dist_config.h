@@ -30,3 +30,6 @@
 #if defined(XSDK_INDEX_SIZE) && (XSDK_INDEX_SIZE == 64)
 #define _LONGINT 1
 #endif
+
+/* Enable symatch */
+#define HAVE_SYMATCH TRUE

@@ -109,6 +109,10 @@ DPLUSRC += d_c2cpp_GetHWPM.o dHWPM_CombBLAS.hpp
 ZPLUSRC += z_c2cpp_GetHWPM.o zHWPM_CombBLAS.hpp
 endif
 
+ifeq ($(HAVE_SYMATCH),TRUE)
+DPLUSRC += dldperm_dist_symatch.o dldperm_dist_symatch.hpp
+endif
+
 all:  single double complex16
 
 config_h:

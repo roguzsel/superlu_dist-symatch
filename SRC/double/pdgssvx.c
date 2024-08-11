@@ -569,6 +569,17 @@ pdgssvx(superlu_dist_options_t *options, SuperMatrix *A,
     Pslu_freeable_t Pslu_freeable;
     float  flinfo;
 
+
+	/* @EDIT-SYMATCH Coarsening information from matching. */
+	struct crs_info_t
+	{
+		int_t	 n_crs;
+		int_t	*crs_vrts;
+	};
+	struct crs_info_t crs_info;
+	crs_info.crs_vrts  = NULL;
+	
+
     /* Initialization. */
     m       = A->nrow;
     n       = A->ncol;
@@ -590,7 +601,7 @@ pdgssvx(superlu_dist_options_t *options, SuperMatrix *A,
     Fact = options->Fact;
     if ( Fact < DOFACT || Fact > FACTORED )
 	*info = -1;
-    else if ( options->RowPerm < NOROWPERM || options->RowPerm > MY_PERMR )
+   	else if ( options->RowPerm < NOROWPERM || options->RowPerm > SymMatch )
 	*info = -1;
     else if ( options->ColPerm < NATURAL || options->ColPerm > MY_PERMC )
 	*info = -1;
@@ -767,7 +778,9 @@ pdgssvx(superlu_dist_options_t *options, SuperMatrix *A,
              (parSymbFact == NO || options->RowPerm != NO) ) {
              /* Performs serial symbolic factorzation and/or MC64 */
 
-            need_value = (options->RowPerm == LargeDiag_MC64);
+		    /* need_value = (options->RowPerm == LargeDiag_MC64); */
+			need_value = (options->RowPerm == LargeDiag_MC64 ||
+						  options->RowPerm == SymMatch);
 
             pdCompRow_loc_to_CompCol_global(need_value, A, grid, &GA);
 
@@ -909,7 +922,131 @@ pdgssvx(superlu_dist_options_t *options, SuperMatrix *A,
 		        if ( !iam ) printf("\t product of diagonal %e\n", dprod);
 	            }
 #endif
-                } else { /* use LargeDiag_HWPM */
+                }
+			else if ( options->RowPerm == SymMatch ) {
+				/* Get a new perm_r[] from MC64 */
+	            if ( job == 5 ) {
+		        /* Allocate storage for scaling factors. */
+		        if ( !(R1 = doubleMalloc_dist(m)) )
+		            ABORT("SUPERLU_MALLOC fails for R1[]");
+		    	if ( !(C1 = doubleMalloc_dist(n)) )
+		            ABORT("SUPERLU_MALLOC fails for C1[]");
+	            }
+
+	            if ( !iam ) { /* Process 0 finds a row permutation */
+
+		        iinfo = dldperm_dist_symatch
+					(job, m, nnz, colptr, rowind, a_GA,
+					 perm_r, R1, C1,
+					 &(crs_info.n_crs), &(crs_info.crs_vrts));
+				/* @EDIT-SYMATCH apply symmetric permutation here.  */
+				check_perm_dist("perm_r_symatch", GA.nrow, perm_r);
+				
+                        MPI_Bcast( &iinfo, 1, mpi_int_t, 0, grid->comm );
+		        if ( iinfo == 0 ) {
+		            MPI_Bcast( perm_r, m, mpi_int_t, 0, grid->comm );
+		            if ( job == 5 && Equil ) {
+		                MPI_Bcast( R1, m, MPI_DOUBLE, 0, grid->comm );
+		                MPI_Bcast( C1, n, MPI_DOUBLE, 0, grid->comm );
+                            }
+		        }
+	            } else {
+		        MPI_Bcast( &iinfo, 1, mpi_int_t, 0, grid->comm );
+			if ( iinfo == 0 ) {
+		            MPI_Bcast( perm_r, m, mpi_int_t, 0, grid->comm );
+		            if ( job == 5 && Equil ) {
+		                MPI_Bcast( R1, m, MPI_DOUBLE, 0, grid->comm );
+		                MPI_Bcast( C1, n, MPI_DOUBLE, 0, grid->comm );
+                            }
+		        }
+	            }
+
+	    	    if ( iinfo && job == 5) { /* Error return */
+	                SUPERLU_FREE(R1);
+	        	SUPERLU_FREE(C1);
+   	            }
+#if ( PRNTlevel>=2 )
+	            dmin = dmach_dist("Overflow");
+	            dsum = 0.0;
+	            dprod = 1.0;
+#endif
+	            if ( iinfo == 0 ) {
+	              if ( job == 5 ) {
+		        if ( Equil ) {
+		            for (i = 0; i < n; ++i) {
+			        R1[i] = exp(R1[i]);
+			        C1[i] = exp(C1[i]);
+		            }
+
+		            /* Scale the distributed matrix further.
+			       A <-- diag(R1)*A*diag(C1)            */
+		            irow = fst_row;
+		            for (j = 0; j < m_loc; ++j) {
+			        for (i = rowptr[j]; i < rowptr[j+1]; ++i) {
+			            icol = colind[i];
+			            a[i] *= R1[irow] * C1[icol];
+#if ( PRNTlevel>=2 )
+			            if ( perm_r[irow] == icol ) { /* New diagonal */
+			              if ( job == 2 || job == 3 )
+				        dmin = SUPERLU_MIN(dmin, fabs(a[i]));
+			              else if ( job == 4 )
+				        dsum += fabs(a[i]);
+			              else if ( job == 5 )
+				        dprod *= fabs(a[i]);
+			            }
+#endif
+			        }
+			        ++irow;
+		            }
+
+		            /* Multiply together the scaling factors --
+			       R/C from simple scheme, R1/C1 from MC64. */
+		            if ( rowequ ) for (i = 0; i < m; ++i) R[i] *= R1[i];
+		            else for (i = 0; i < m; ++i) R[i] = R1[i];
+		            if ( colequ ) for (i = 0; i < n; ++i) C[i] *= C1[i];
+		            else for (i = 0; i < n; ++i) C[i] = C1[i];
+
+		            ScalePermstruct->DiagScale = BOTH;
+		            rowequ = colequ = 1;
+
+		        } /* end Equil */
+
+				/* @EDIT-SYMATCH row permutation is applied here, apply Pr^T too. */
+                        /* Now permute global GA to prepare for symbfact() */
+                 /* for (j = 0; j < n; ++j) { */
+		        /*     for (i = colptr[j]; i < colptr[j+1]; ++i) { */
+	            /*             irow = rowind[i]; */
+		        /*         rowind[i] = perm_r[irow]; */
+		        /*     } */
+		        /* } */
+				 apply_perm_sym(m, nnz, colptr, rowind, a_GA, perm_r);
+				 
+		        SUPERLU_FREE (R1);
+		        SUPERLU_FREE (C1);
+	              } else { /* job = 2,3,4 */
+					  fprintf(stdout, "[AC]\n"); fflush(stdout);
+		        for (j = 0; j < n; ++j) {
+		            for (i = colptr[j]; i < colptr[j+1]; ++i) {
+			        irow = rowind[i];
+			        rowind[i] = perm_r[irow];
+		            } /* end for i ... */
+		        } /* end for j ... */
+	              } /* end else job ... */
+                    } else { /* if iinfo != 0 */
+			for (i = 0; i < m; ++i) perm_r[i] = i;
+		    }
+
+#if ( PRNTlevel>=2 )
+	            if ( job == 2 || job == 3 ) {
+		        if ( !iam ) printf("\tsmallest diagonal %e\n", dmin);
+	            } else if ( job == 4 ) {
+		        if ( !iam ) printf("\tsum of diagonal %e\n", dsum);
+	            } else if ( job == 5 ) {
+		        if ( !iam ) printf("\t product of diagonal %e\n", dprod);
+	            }
+#endif
+                }
+			else { /* use LargeDiag_HWPM */
 #ifdef HAVE_COMBBLAS
 		    d_c2cpp_GetHWPM(A, grid, ScalePermstruct);
 #else
@@ -1019,7 +1156,44 @@ pdgssvx(superlu_dist_options_t *options, SuperMatrix *A,
 		  return;
      	      }
 	  } else {
-	      get_perm_c_dist(iam, permc_spec, &GA, perm_c);
+		  /* generate uncoarsened versions of GA and perm_c but also
+			 maintain the contracted versions */
+		  /* @EDIT-SYMATCH Add branch here */
+		  SuperMatrix GA_c;
+		  coarsen_graph(&GA, &GA_c, crs_info.n_crs, crs_info.crs_vrts);
+		  
+		  int_t *crs_perm_c =
+			  (int_t *)malloc(sizeof(*crs_perm_c) * GA_c.nrow);
+		  get_perm_c_dist(iam, permc_spec, &GA_c, crs_perm_c);
+		  
+		  fprintf(stdout, "Projecting back the coarse column permutation ... ");
+		  
+		  /* cumulative crs_vrts. */
+		  int_t *crs_vrts_cum = (int_t *) intMalloc_dist(crs_info.n_crs+1);
+		  crs_vrts_cum[0] = 0;
+		  for (i = 0; i < crs_info.n_crs; ++i)
+			  crs_vrts_cum[i+1] = crs_vrts_cum[i] + crs_info.crs_vrts[i];
+
+		  /* reverse perm. */
+		  int_t *rev_crs_perm_c = (int_t *) intMalloc_dist(crs_info.n_crs);
+		  for (i = 0; i < crs_info.n_crs; ++i)
+			  rev_crs_perm_c[crs_perm_c[i]] = i;
+
+		  int_t cur = 0;
+		  for (i = 0; i < crs_info.n_crs; ++i)
+		  {
+			  int_t rev_i = rev_crs_perm_c[i];
+			  for (j = crs_vrts_cum[rev_i]; j < crs_vrts_cum[rev_i+1]; ++j)
+				  perm_c[j] = cur++;
+		  }
+
+		  SUPERLU_FREE(crs_vrts_cum);
+		  if (rev_crs_perm_c)
+			  SUPERLU_FREE(rev_crs_perm_c);
+
+		  check_perm_dist("uncoarsen_perm_c", GA.nrow, perm_c);
+
+		  fprintf(stdout, "DONE.\n"); fflush(stdout);		  
           }
         }
 

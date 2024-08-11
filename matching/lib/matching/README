@@ -1,0 +1,37 @@
+Compile program with
+gcc wframe3.c -O3 -fopenmp -lnuma
+
+If you don´t have numa support then remove -lnuma and also in wframe3.c the 
+include file "numa.h" and first five lines in main() (only relevant to numa).
+
+To set up which files to use edit the file data_files. It should contain the following
+
+On line i:
+1: Number of graphs
+2: Number of times each graph is run, only best running time will be reported
+3: Number of parallel configurations followed by threads in Conf1 Conf2 ConfN. For sequential runs set number
+of configurations to 0
+4- Names of data files, one line per file
+
+Any lines after this will be ignored.
+
+run with
+
+./a.out data_files
+
+To specify which algorithms to run edit wframe3.c and set the associated boolean values to true or false:
+
+SortEdgesSequential          Sort the edges, needed for Greedy and GPA
+WGreedyVertex                Standard Greedy algorithm, assumes the edge list has been sorted
+WSuitorSequential            Standard sequential suitor algorithm
+WRama,WRoma                  Turns on Rama and Roma post-processing, note that this is not available for all algorithms
+WGPASequential               Sequential Global paths algorithm, assumes the edge list has been sorted
+WLocalMaxSequential          Sequential Local max algorithm
+WPGASequential               Sequential path growing algorithm with ensuing dynamic programming, does not work with Roma/Rama.
+W2RSuitorDPCycSequential     Sequential M1M2 algorithm
+WSuitorParallel              Parallel suitor algorithm
+WLocalMaxLocalListParallel   Parallel Local max algorithm, uses one queue for each thread
+W2RSuitorDPParallel          Parallel M1M2 algorithm
+
+See the file results.m for output. This can be read into Matlab and used for analyzing and
+plotting the results.

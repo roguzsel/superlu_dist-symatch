@@ -52,6 +52,10 @@ option(TPL_ENABLE_NVSHMEM   "Enable the NVSHMEM libraries" OFF)
 option(TPL_ENABLE_ROCSHMEM   "Enable the ROCSHMEM libraries" OFF)
 #-- MAGMA 
 option(TPL_ENABLE_MAGMALIB "Enable the MAGMA library" OFF)
+#-- Symmetric Matching
+option(TPL_ENABLE_SYMATCHLIB   "Build the symatch library" ON)
+option(TPL_SYMATCH_LIBRARIES "List of absolute paths to symatch link libraries [].")
+option(TPL_SYMATCH_INCLUDE_DIRS "List of absolute paths to symatch include directories [].")
 
 ######################################################################
 #
@@ -521,6 +525,32 @@ if(COMBBLAS_FOUND)
 else()
   set(LOADER $(CC))
 endif()
+
+
+#--------------------- Symmetric Matching ---------------------
+if(TPL_ENABLE_SYMATCHLIB)
+  foreach(dir ${TPL_SYMATCH_INCLUDE_DIRS})
+    set(CMAKE_CXX_FLAGS "-I${dir} ${CMAKE_CXX_FLAGS}")
+  endforeach()
+
+  message("-- Enabled support for symmetric matching.")
+  set(SYMATCH_FOUND TRUE)
+  # set(CMAKE_CXX_STANDARD 14)
+
+  set(SYMATCH_LIB ${TPL_SYMATCH_LIBRARIES})
+  set(SYMATCH_LIB_EXPORT ${SYMATCH_LIB})
+
+else()
+  message("-- Will not link/use with symatch.")
+endif()
+
+if(SYMATCH_FOUND)
+  set(HAVE_SYMATCH TRUE)
+  set(LOADER $(CXX))
+else()
+  set(LOADER $(CC))
+endif()
+
 
 #---------------------- Additional C linker library ---------
 SET(_c_libs ${CMAKE_C_IMPLICIT_LINK_LIBRARIES})
