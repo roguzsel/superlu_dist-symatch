@@ -30,6 +30,7 @@ Table of Contents
    * [Installation option 1: Using CMake build system.](#installation-option-1-using-cmake-build-system)
       * [Dependent external libraries: BLAS and ParMETIS](#dependent-external-libraries-blas-and-parmetis)
       * [Optional external libraries: CombBLAS, LAPACK](#optional-external-libraries-combblas-lapack)
+      * [Symmetric matching](#symmetric-matching)
       * [Use GPU](#use-gpu)
       * [Summary of the CMake definitions.](#summary-of-the-cmake-definitions)
    * [Installation option 2: Manual installation with makefile.](#installation-option-2-manual-installation-with-makefile)
@@ -153,7 +154,7 @@ speed. You can use it with the following cmake option:
 ```
 
 
-### Symmetric matching.
+### Symmetric matching
 
 In order to use the symmetric matching for static pivoting, you first need to compile the Suitor matching library under ```matching/lib/matching``` by running:
 ```
