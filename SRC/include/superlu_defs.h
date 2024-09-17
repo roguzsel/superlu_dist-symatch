@@ -765,9 +765,12 @@ typedef struct {
     int superlu_acc_offload; /* whether to offload work to GPU; see sp_ienv(10) */
     int batchCount;     /* number of systems in the batched interface 
 			   0 : not to use batch interface (default)    */
-    yes_no_t      SymPattern;      /* symmetric factorization          */
-    yes_no_t      Use_TensorCore;  /* Use Tensor Core or not  */
+    yes_no_t      SymPattern;      /* only pattern is symmetric             */
+    yes_no_t      Use_TensorCore;  /* Use Tensor Core or not                */
     yes_no_t      Algo3d;          /* use 3D factorization/solve algorithms */
+    yes_no_t      SymFact;         /* symmetric factorization, feature 2x2 pivoting */
+    int           *indicator_2x2;  /* size N, indicating 2x2 pivot found from symmeetric matching,
+				      needed when SymFact = YES     */
 } superlu_dist_options_t;
 
 typedef struct {

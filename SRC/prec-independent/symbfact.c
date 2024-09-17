@@ -43,8 +43,8 @@ at the top-level directory.
  * Internal protypes
  */
 static void  relax_snode(int_t, int_t *, int_t, int_t *, int_t *);
-static int_t snode_dfs(SuperMatrix *, const int_t, const int_t, int_t *,
-		       int_t *,	Glu_persist_t *, Glu_freeable_t *);
+static int_t snode_dfs(superlu_dist_options_t *, SuperMatrix *, const int, const int,
+		       int_t *, int_t *, Glu_persist_t *, Glu_freeable_t *);
 static int_t column_dfs(superlu_dist_options_t *, SuperMatrix *,
 			const int_t, int_t *, int_t *, int_t *,
 			int_t *, int_t *, int_t *, int_t *, int_t *,
@@ -140,18 +140,34 @@ int_t symbfact
     SUPERLU_FREE(desc);
     
     for (j = 0; j < min_mn; ) {
-	if ( relax_end[j] != SLU_EMPTY ) { /* beginning of a relaxed snode */
-   	    k = relax_end[j];          /* end of the relaxed snode */
-	 
+	if ( relax_end[j] != SLU_EMPTY ) { /* j is the first column of a relaxed snode */
+   	    k = relax_end[j];          /* k is the last column of the relaxed snode */
+
+	    if ( options->SymFact ) {
+		if ( options->indicator_2x2[k] == 2 ) {
+		    /* k is the first column in the 2x2 block, then do: */
+		    /* merge column k+1 to the current relaxed s-node */
+		    k = k + 1;
+		    
+		    /* mark new column k+1 to start a new s-node, inherit relaxed s-node
+		       status from column k 		    */
+		    if ( (k+1) < min_mn &&
+			 (k+1) <= relax_end[k] ) { /* k+1 in the same relaxed_snode as k */
+			relax_end[k+1] = relax_end[k];
+		    }
+		}
+	    }
+	    
 	    /* Determine union of the row structure of supernode (j:k). */
-	    if ( (info = snode_dfs(A, j, k, xprune, marker,
+	    if ( (info = snode_dfs(options, A, j, k, xprune, marker,
 				   Glu_persist, Glu_freeable)) != 0 )
 		return info;
 
 	    for (i = j; i <= k; ++i)
 		pivotL(i, perm_r, &pivrow, Glu_persist, Glu_freeable); 
 
-	    j = k+1;
+	    j = k+1; /* move to next column */
+	    
 	} else {
 	    /* Perform a symbolic factorization on column j, and detects
 	       whether column j starts a new supernode. */
@@ -178,7 +194,7 @@ int_t symbfact
 	    }
 
 	    ++j;
-	} /* else */
+	} /* end else */
     } /* for j ... */
 
     countnz_dist(min_mn, xprune, &nnzL, &nnzU, Glu_persist, Glu_freeable);
@@ -254,7 +270,8 @@ static void relax_snode
     for (j = 0; j < n; ) { 
      	parent = et[j];
         fsupc = j;
- 	while ( parent != n && desc[parent] < relax ) {
+ 	while ( parent != n && desc[parent] < (relax-1) ) { /* leave 1 slot to accommodate
+							       2nd column of a 2x2 pivot */
 	    j = parent;
 	    parent = et[j];
 	}
@@ -292,9 +309,10 @@ static void relax_snode
 static int_t snode_dfs
 /************************************************************************/
 (
+ superlu_dist_options_t *options,
  SuperMatrix *A,       /* original matrix A permuted by columns (input) */
- const int_t jcol,      /* beginning of the supernode (input) */
- const int_t kcol,      /* end of the supernode (input) */
+ const int jcol,      /* beginning of the supernode (input) */
+ const int kcol,      /* end of the supernode (input) */
  int_t       *xprune,   /* pruned location in each adjacency list (output) */
  int_t       *marker,   /* working array of size m */
  Glu_persist_t *Glu_persist,   /* global LU data structures (modified) */
@@ -424,7 +442,6 @@ static int_t snode_dfs
  *                                       :           :
  *                                       :         xprune[t]
  *                                   xlsub[t]      
- *                                   xprune[s]    
  *
  *      (2) if t == s, i.e., a singleton supernode, the same subscript set
  *          is used for both G(L) and pruned graph:
@@ -478,7 +495,7 @@ static int_t column_dfs
     NCPformat *Astore;
     int_t     *asub, *xa_begin, *xa_end;
     int_t     jcolp1, jcolm1, jsuper, nsuper, nextl;
-    int_t     k, krep, krow, kmark, kperm;
+    int       j, k, krep, krow, kmark, kperm;
     int_t     fsupc; /* first column of a supernode */
     int_t     myfnz; /* first nonzero column of a U-segment */
     int_t     chperm, chmark, chrep, kchild;
@@ -630,7 +647,7 @@ static int_t column_dfs
 	fsupc = xsup[nsuper];
 	jptr = xlsub[jcol];	/* Not compressed yet */
 	jm1ptr = xlsub[jcolm1];
-	
+
 #ifdef T2_SUPER
 	if ( (nextl-jptr != jptr-jm1ptr-1) ) jsuper = SLU_EMPTY;
 #endif
@@ -638,6 +655,71 @@ static int_t column_dfs
 	   exceed threshold. */
 	if ( jcol - fsupc >= maxsuper ) jsuper = SLU_EMPTY;
 	
+	/* Sherry mod: In symmetric LDL' factorization, do not break 2x2 pivot. */
+	if ( options->SymFact ) {
+	    if ( options->indicator_2x2[jcolm1] == SLU_EMPTY ) {
+		/* previous column flags jcol to start a new s-node */
+		jsuper = SLU_EMPTY; 
+	    } else if ( options->indicator_2x2[jcol] == 0 ) {
+		/* jcol is the 2nd column in the 2x2 block, then do:
+		   1) set jsuper != SLU_EMPTY 
+		   2) take the union of struct(jcolm1) and struct(jcol)
+		   3) need to update the index set of the 1st column in current s-node
+		*/
+		
+		if ( jsuper == SLU_EMPTY ) { /* jcol has different structure than jcolm1 */
+		    /* jcol needs to be merged in the current s-node, with structure update:
+		       take the union of struct(fsupc) and struct(jcol)
+		       Make sure it works for current s-node size nsupc = 1,2, >=3
+		    */
+#ifdef CHK_COMPRESS
+		    printf(".. Merge 2nd column with s-node %d-%d\n",fsupc,jcolm1);
+#endif
+		    /* keep fsupc list, augment it with extras from jcol list */
+		    /* need to use fsupc list to check against jcol list */
+		    ito = nextl;
+		    ifrom = xlsub[fsupc];
+		    for (j = ifrom; j < xlsub[fsupc+1]; ++j) {
+			krow = lsub[j];
+			kmark = marker[krow];
+			if ( kmark < jcol ) { /* krow is not in jcol */
+			    lsub[ito++] = krow;
+			    marker[krow] = jcol;
+			}
+		    }
+		    nextl = ito;
+		    /* Now: [jptr : nextl] contains the augmented list 
+		       move it to the fsupc location 
+		    */
+		    ito = xlsub[fsupc];
+		    for (ifrom = jptr; ifrom < nextl; ++ifrom, ++ito)
+			lsub[ito] = lsub[ifrom];
+		    xlsub[jcol] = ito;
+		    
+		    /* make another copy of the new list for pruning */
+		    for (ifrom = xlsub[fsupc]; ifrom < xlsub[jcol]; ++ifrom, ++ito)
+			lsub[ito] = lsub[ifrom];
+		    nextl = ito;
+		    xprune[jcol] = nextl; /* Initialize xprune[jcol] */
+		    supno[jcol] = nsuper; /* use the same s-node number */
+		    //++nsuper;
+		    
+		    /* Should jcol+1 starts a new s-node? -> YES, otherwise may have
+		       too many fill-ins. 
+		       Use the new 'indicator' array to inform the next column to start
+		       a new s-node.
+		    */
+		    options->indicator_2x2[jcol] = SLU_EMPTY;
+		    
+		    /* Make sure xlsub[] are updated for each column ?? */
+		    
+		} /* end if jsuper == SLU_EMPTY */
+		
+		jsuper = nsuper;  /* not to start a new s-node */
+		
+	    } /* end: 2nd column in 2x2 pivot */
+	}
+	    
 	/* If jcol starts a new supernode, reclaim storage space in
 	 * lsub[*] from the previous supernode. Note we only store
 	 * the subscript set of the first and last columns of

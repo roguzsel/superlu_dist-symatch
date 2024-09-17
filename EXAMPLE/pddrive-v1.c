@@ -131,12 +131,15 @@ int main(int argc, char *argv[])
     if (ir != -1) options.IterRefine = ir;
     if (symbfact != -1) options.ParSymbFact = symbfact;
 
-	int superlu_acc_offload = sp_ienv_dist(10, &options); //get_acc_offload();
+    int superlu_acc_offload = sp_ienv_dist(10, &options); //get_acc_offload();
 
-	/* @EDIT-SYMATCH */
-	options.RowPerm = SymMatch;
-	// options.RowPerm = LargeDiag_MC64;
-	
+    /* @EDIT-SYMATCH */
+    // options.RowPerm = SymMatch;
+    // options.RowPerm = LargeDiag_MC64;
+    if (options.RowPerm == SymMatch) {
+	options.Equil = NO;  /* not implemented yet */
+	options.SymFact = YES;       /* perform symmetric factorization */
+    }
 
     /* In the batch mode: create multiple SuperLU grids,
         each grid solving one linear system. */
