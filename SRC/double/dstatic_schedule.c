@@ -142,6 +142,7 @@ dstatic_schedule(superlu_dist_options_t * options, int m, int n,
                 }
                 j += SuperSize (lb);
             }
+
         } else { /* ParSymbFACT==YES and SymPattern==YES and RowPerm == NOROWPERM */
             /* Compute an "etree" based on struct(L),
                assuming struct(U) = struct(L').   */
@@ -297,8 +298,9 @@ dstatic_schedule(superlu_dist_options_t * options, int m, int n,
 
         myrow = MYROW (iam, grid);
 #if ( PRNTlevel>=1 )
-        if (grid->iam == 0)
-            printf (" === using DAG ===\n");
+        if (grid->iam == 0) {
+            printf (" === using DAG ===\n"); fflush(stdout);
+	}
 #endif
 
         /* send supno block of local U-factor to a processor *
@@ -395,7 +397,7 @@ dstatic_schedule(superlu_dist_options_t * options, int m, int n,
             }
         }
 
-        /* communication */
+	/* communication */
         MPI_Alltoall (sendcnts, 1, MPI_INT, recvcnts, 1, MPI_INT, grid->comm);
         MPI_Alltoall (srows, nrbp1, MPI_INT, rrows, nrbp1, MPI_INT, grid->comm);
 
@@ -693,6 +695,8 @@ dstatic_schedule(superlu_dist_options_t * options, int m, int n,
             }
             i = ib;
         }
+	
+	printf (" \t=== [4] ===\n"); fflush(stdout);
 
 #ifdef USE_ALLGATHER
         /* insert local nodes in DAG */
@@ -856,12 +860,16 @@ dstatic_schedule(superlu_dist_options_t * options, int m, int n,
                 }
             }
         }
+	
+	//	PrintInt32("nnodes_l", nsupers, nnodes_l);
+	
         for (lb = 0; lb < nsupers; lb++) {
             if (nnodes_l[lb] > 0)
                 if (!(edag_supno[lb] = intMalloc_dist (nnodes_l[lb])))
                     ABORT ("Malloc fails for edag_supno[lb].");
             nnodes_l[lb] = 0;
         }
+
         k = 0;
         for (p = 0; p < Pc * Pr; p++) {
             yourcol = MYCOL (p, grid);
@@ -886,6 +894,8 @@ dstatic_schedule(superlu_dist_options_t * options, int m, int n,
 
 #endif  /* end USE_ALL_GATHER */
 
+	printf (" \t=== [5] ===\n"); fflush(stdout);
+	
         /* initialize the num of child for each node */
         num_child = SUPERLU_MALLOC (nsupers * sizeof (int_t));
         for (i = 0; i < nsupers; i++) num_child[i] = 0;
@@ -895,6 +905,8 @@ dstatic_schedule(superlu_dist_options_t * options, int m, int n,
             }
         }
 
+	PrintInt32("num_child", nsupers, num_child);
+	
         /* push initial leaves to the fifo queue */
         nnodes = 0;
         for (i = 0; i < nsupers; i++) {
@@ -918,13 +930,18 @@ dstatic_schedule(superlu_dist_options_t * options, int m, int n,
         /* process fifo queue, and compute the ordering */
         i = 0;
 
+
+	printf("leaf nodes %d\n", nnodes);
+
         while (nnodes > 0) {
-            /*printf( "=== pop %d (%d) ===\n",head->id,i ); */
+            //printf( "=== pop %d (%d) ===\n",head->id,i );
             ptr = head;
             j = ptr->id;
             head = ptr->next;
 
             perm_c_supno[i] = j;
+	    printf("CHK: perm_c_supno[%d] %d\n", i, j);
+			       
             SUPERLU_FREE (ptr);
             i++;
             nnodes--;
@@ -971,8 +988,13 @@ dstatic_schedule(superlu_dist_options_t * options, int m, int n,
      * end of static scheduling *
      * ======================== */
 
+    printf (" \t=== [6] nsupers %d ===\n", nsupers); fflush(stdout);
+
+    PrintInt32("perm_c_supno", nsupers, perm_c_supno);
     for (lb = 0; lb < nsupers; lb++) iperm_c_supno[perm_c_supno[lb]] = lb;
 
+    	printf (" \t=== [7] ===\n"); fflush(stdout);
+	
 #if ( DEBUGlevel >= 1 )
     print_memorylog(stat, "after static schedule");
     check_perm_dist("perm_c_supno", nsupers, perm_c_supno);

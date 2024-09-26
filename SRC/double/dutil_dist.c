@@ -1790,3 +1790,33 @@ void dDumpLblocks3D(int_t nsupers, gridinfo3d_t *grid3d,
 } /* end dDumpLblocks3D */
 
 
+/*! \brief Check diagonal entries of a CSC matrix
+ */
+int dCheck_Diag_CSC(char *what, SuperMatrix *A)
+{
+    NCformat *Astore = (NCformat *) A->Store;
+    int_t *colptr = Astore->colptr;
+    int_t *rowind = Astore->rowind;
+    double *nzval = Astore->nzval; 
+    double dsum = 0.0;
+    double dprod = 1.0;
+    int diag_zeros = 0, diag_total = 0;
+    int n = A->ncol;
+    for (int j = 0; j < n; ++j) {
+	for (int_t i = colptr[j]; i < colptr[j+1]; ++i) {
+	    int irow = rowind[i];
+	    if ( irow == j ) { /* New diagonal */
+		dsum += fabs(nzval[i]);
+		dprod *= fabs(nzval[i]);
+		++diag_total;
+		if ( fabs(nzval[i])==0.0 ) diag_zeros++;
+		//printf("diag %d: %e\n", irow, a_GA[i]);
+	    }
+	}
+    }
+    printf("%s\n", what);
+    printf(".. total diags %d, zero diags %d\n", diag_total, diag_zeros);
+    printf("\tproduct of diagonal %e, sum of diagonal %e\n", dprod, dsum);
+
+    return 0;
+}

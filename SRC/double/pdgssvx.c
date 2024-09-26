@@ -557,7 +557,7 @@ pdgssvx(superlu_dist_options_t *options, SuperMatrix *A,
     int_t lk,k,knsupc,nsupr;
     int_t  *lsub,*xsup;
     double *lusup;
-#if ( PRNTlevel>= 2 )
+#if ( PRNTlevel >= 1 )
     double   dmin, dsum, dprod;
 #endif
 
@@ -935,7 +935,7 @@ pdgssvx(superlu_dist_options_t *options, SuperMatrix *A,
 			/* @EDIT-SYMATCH apply symmetric permutation here.  */
 #if ( PRNTlevel>=1 )
 			check_perm_dist("perm_r_symatch", GA.nrow, perm_r);
-			PrintInt32("perm_r_symatch", m, perm_r);
+			//PrintInt32("perm_r_symatch", m, perm_r);
 #endif
                         MPI_Bcast( &iinfo, 1, MPI_INT, 0, grid->comm );
 		        if ( iinfo == 0 ) {
@@ -951,28 +951,21 @@ pdgssvx(superlu_dist_options_t *options, SuperMatrix *A,
 	            if ( iinfo == 0 ) {
 			/* @EDIT-SYMATCH row permutation is applied here, apply Pr^T too. */
                         /* Now permute global GA to prepare for symbfact() */
+#if ( PRNTlevel>=1 )
+			dCheck_Diag_CSC("Before apply_perm_sym()", &GA);
+#endif			
+			
 			apply_perm_sym(m, nnz, colptr, rowind, a_GA, perm_r);
 
+#if ( PRNTlevel>=1 )
+			dCheck_Diag_CSC("After apply_perm_sym()", &GA);
+#endif
+			
 			/* Distributed A also will be permuted before pddistribute */
 				 
                     } else { /* if iinfo != 0 */
 			for (i = 0; i < m; ++i) perm_r[i] = i;
 		    }
-
-#if ( PRNTlevel>=2 )
-		    if ( perm_r[irow] == icol ) { /* New diagonal */
-			if ( job == 2 || job == 3 )
-			    dmin = SUPERLU_MIN(dmin, fabs(a[i]));
-			else if ( job == 4 )
-			    dsum += fabs(a[i]);
-			else if ( job == 5 )
-			    dprod *= fabs(a[i]);
-			            }
-		        if ( !iam ) printf("\tsum of diagonal %e\n", dsum);
-	            } else if ( job == 5 ) {
-		        if ( !iam ) printf("\t product of diagonal %e\n", dprod);
-	            }
-#endif
                 }
 			else { /* use LargeDiag_HWPM */
 #ifdef HAVE_COMBBLAS
@@ -1104,7 +1097,7 @@ pdgssvx(superlu_dist_options_t *options, SuperMatrix *A,
 			  /* cumulative crs_vrts. */
 			  int_t *crs_vrts_cum = (int_t *) intMalloc_dist(crs_info.n_crs+1);
 			  crs_vrts_cum[0] = 0;
-#if 0			  
+#if 0   // old code
 			  for (i = 0; i < crs_info.n_crs; ++i)
 			      crs_vrts_cum[i+1] = crs_vrts_cum[i] + crs_info.crs_vrts[i];
 #else   // Sherry mod
@@ -1120,7 +1113,8 @@ pdgssvx(superlu_dist_options_t *options, SuperMatrix *A,
 			      }
 			  }
 #if ( PRNTlevel>=1 )
-			  PrintInt32("indicator_2x2", n, options->indicator_2x2);
+			  //PrintInt32("indicator_2x2", n, options->indicator_2x2);
+			  PrintInt32("indicator_2x2", 300, options->indicator_2x2);
 #endif
 #endif
 			  /* reverse perm. */

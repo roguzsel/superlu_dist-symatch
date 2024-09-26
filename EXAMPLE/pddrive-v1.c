@@ -1,3 +1,4 @@
+
 #include <math.h>
 #include "superlu_ddefs.h"
 
@@ -71,14 +72,14 @@ int main(int argc, char *argv[])
 	options.DiagInv           = NO;
      */
     set_default_options_dist(&options);
+    options.ReplaceTinyPivot = YES;
+    options.Equil = NO; 
 #if 0
     options.ParSymbFact       = YES;
     options.ColPerm           = PARMETIS;
     options.RowPerm = LargeDiag_HWPM;
     options.IterRefine = NOREFINE;
     options.ColPerm = NATURAL;
-    options.Equil = NO; 
-    options.ReplaceTinyPivot = YES;
 #endif
 
     /* Parse command line argv[], may modify default options */

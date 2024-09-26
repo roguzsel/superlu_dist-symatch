@@ -108,7 +108,7 @@ int dcreate_matrix_postfix(SuperMatrix *A, int nrhs, double **rhs,
     if(!strcmp(postfix,"rua")){
 		/* Read the matrix stored on disk in Harwell-Boeing format. */
 		dreadhb_dist(iam, fp, &m, &n, &nnz, &nzval, &rowind, &colptr);
-	}else if(!strcmp(postfix,"mtx")){
+    }else if( (!strcmp(postfix,"mtx")) || (!strcmp(postfix,"mm")) ) {
 		/* Read the matrix stored on disk in Matrix Market format. */
 		dreadMM_dist(fp, &m, &n, &nnz, &nzval, &rowind, &colptr);
 	}else if(!strcmp(postfix,"rb")){

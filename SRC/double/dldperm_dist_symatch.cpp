@@ -357,9 +357,9 @@ apply_perm_sym
 	// Compute permuted colptr.
 	colptr_p[0] = 0;
 	for (int_t c = 0; c < n; ++c)
-		colptr_p[p[c]+1] = colptr[c+1] - colptr[c];
+	    colptr_p[p[c]+1] = colptr[c+1] - colptr[c]; // column count
 
-	for (int_t c = 0; c < n; ++c)
+	for (int_t c = 0; c < n; ++c)  // prefix sum
 		colptr_p[c+1] += colptr_p[c];
 
 	// Permute the matrix.
@@ -381,7 +381,6 @@ apply_perm_sym
 	SUPERLU_FREE(colptr_p);
 	SUPERLU_FREE(adjncy_p);
 	SUPERLU_FREE(nzval_p);
-	
 
 	return;
 }

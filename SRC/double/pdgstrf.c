@@ -1,3 +1,4 @@
+
 /*! \file
 Copyright (c) 2003, The Regents of the University of California, through
 Lawrence Berkeley National Laboratory (subject to receipt of any required
@@ -607,11 +608,16 @@ pdgstrf(superlu_dist_options_t * options, int m, int n, double anorm,
     perm_c_supno = SUPERLU_MALLOC (2 * nsupers * sizeof (int_t));
     iperm_c_supno = perm_c_supno + nsupers;
 
+    printf("[%d] .. before static schedule .. nsupers %d\n", iam, nsupers); fflush(stdout);
+
+#if 1
     dstatic_schedule(options, m, n, LUstruct, grid, stat,
 		    perm_c_supno, iperm_c_supno, info);
-
-#if ( DEBUGlevel >= 2 )
+    
     PrintInt10("schedule:perm_c_supno", nsupers, perm_c_supno);
+#endif    
+
+#if ( DEBUGlevel >= 0 )
 
     /* Turn off static schedule */
     printf("[%d] .. Turn off static schedule for debugging ..\n", iam);

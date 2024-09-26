@@ -1624,6 +1624,7 @@ extern void dDumpLblocks3D(int_t nsupers, gridinfo3d_t *grid3d,
 			   Glu_persist_t *Glu_persist, dLocalLU_t *Llu);
 extern void dDumpUblocks3D(int_t nsupers, gridinfo3d_t *grid3d,
 			   Glu_persist_t *Glu_persist, dLocalLU_t *Llu);
+extern int dCheck_Diag_CSC(char *what, SuperMatrix *);
     
 /*== end 3D prototypes ===================*/
 
