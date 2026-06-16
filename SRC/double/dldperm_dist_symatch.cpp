@@ -735,6 +735,159 @@ dldperm_dist_symatch_v2
 
 
 
+// structures setup to bypass suitor library conversion
+// no sorting
+int
+dldperm_dist_symatch_v3
+(
+    int			  job,
+	int			  n,
+	int_t		  nnz,
+	int_t		  colptr[],
+	int_t		  adjncy[],
+	double		  nzval[],
+	int_t		 *perm,
+	crs_info_t	 *crs_info
+)
+{
+	timer tmr_sym_all("sym-all");
+	timer tmr_gm_form("gm-form");
+	timer tmr_match("match");
+	timer tmr_perm("perm");
+	timer tmr_crsinf("crs-info");
+
+	cout << string(80, '=') << endl;
+
+	tmr_sym_all.start_timer();
+	tmr_gm_form.start_timer();
+
+	// form directly from sparse matrix
+	int32_t nv, *xadj, *adj;
+	double *ew;
+	form_graph_sp2(n, nnz, colptr, adjncy, nzval,
+				   &nv, &xadj, &adj, &ew);
+
+	tmr_gm_form.stop_timer();
+
+	cout << "formed the graph model, running the matching..." << endl;
+
+	// check the suitor library's global params
+	if (nv > max_n || xadj[nv+1]+1 > max_m)
+	{
+		cerr << "matching lib's max_n and max_m variables too small "
+			 << max_n << " " << max_m
+			 << " graph nv " << nv
+			 << " adj size " << xadj[nv+1]
+			 << " .ABORT."
+			 << endl;
+		exit(EXIT_FAILURE);
+	}
+
+	cout << "#threads " << omp_get_num_threads()
+		 << " max " << omp_get_max_threads()
+		 << endl;
+
+	int symalg = atoi(getenv("SYM_ALG"));
+	SyMatch::WrMatch *wrm = nullptr;
+
+	tmr_match.start_timer();
+
+	if (symalg == 0)			// Sequential Suitor
+	{
+		cout << "suitor-seq" << endl;
+		wrm = new SyMatch::WgtSuitorSeqFor(nv, xadj, adj, ew);
+	}
+	else if (symalg == 1)		// Parallel Suitor
+	{
+		cout << "suitor-par" << endl;
+		wrm = new SyMatch::WgtSuitorPar(nv, xadj, adj, ew);
+	}
+	else
+	{
+		cout << "unknown symalg option, exit." << endl;
+		exit(19);
+	}
+	
+	wrm->match();
+
+	tmr_match.stop_timer();
+
+	tmr_perm.start_timer();
+
+	// Compute the permutation
+	int32_t *m		= wrm->p;	// raw match	
+	int_t	 curidx = 0;
+	crs_info->n_crs	= 0;
+	// fine to crs mapping (for after Pr is applied)
+	crs_info->ftoc	= (int_t *) malloc(sizeof(*(crs_info->ftoc)) * n);
+	for (int_t v = 1; v <= n; ++v)
+	{
+		int_t u = m[v];		
+		
+		if (u == 0 || u > n) // singleton
+		{
+			crs_info->ftoc[curidx] = crs_info->n_crs;
+			++(crs_info->n_crs);
+			perm[v-1] = curidx++;			
+		}
+		else if (v < u)
+		{
+			crs_info->ftoc[curidx]	 = crs_info->n_crs;
+			crs_info->ftoc[curidx+1] = crs_info->n_crs;
+			++(crs_info->n_crs);
+			perm[v-1] = curidx++;
+			perm[u-1] = curidx++;
+		}
+	}
+
+	tmr_perm.stop_timer();
+
+	tmr_crsinf.start_timer();
+
+	// 2nd pass - coarsening information.
+	if (crs_info->n_crs > 0)
+		crs_info->crs_vrts =
+			(int_t *)malloc(sizeof(*(crs_info->crs_vrts)) * (crs_info->n_crs));	
+
+	int_t crs_idx = 0;
+	for (int_t v = 1; v <= n; ++v)
+	{
+		int_t u = m[v];
+
+		if (u == 0 || u > n) // singleton
+			(crs_info->crs_vrts)[crs_idx++] = 1;
+		else if (v < u)
+			(crs_info->crs_vrts)[crs_idx++] = 2;
+	}
+
+	tmr_crsinf.stop_timer();
+	tmr_sym_all.stop_timer();
+
+	cout << "#2x2 " << n-(crs_info->n_crs)
+		 << " #1x1 " << 2*(crs_info->n_crs)-n << "\n";
+	cout << "Number of coarse vertices " << crs_info->n_crs << "\n";
+	fprintf(stdout, "matching cost %lf\n", wrm->cost());
+	cout << string(80, '=') << endl;
+
+	// arrays will be deleted by wrm
+	delete wrm;
+
+	cout << "time:\n"
+		 << "  " << tmr_gm_form.getstr() << "\n"
+		 << "  " << tmr_match.getstr() << "\n"
+		 << "  " << tmr_perm.getstr() << "\n"
+		 << "  " << tmr_crsinf.getstr() << "\n"
+		 << "  " << tmr_sym_all.getstr()
+		 << endl;
+
+
+	return 0;
+}
+
+
+
+
+
 int
 dldperm_dist_symatch
 (
