@@ -3,8 +3,10 @@
 #include <cfloat>
 #include <chrono>
 #include <climits>
+#include <execution>
 #include <iostream>
 #include <limits>
+#include <numeric>
 #include <sstream>
 #include <string>
 #include <tuple>
@@ -380,6 +382,131 @@ form_graph_sp2
 	cout << "#vertices " << nv
 		 << " #edges " << xadj[nv+1]
 		 << endl;
+
+	
+	// ofstream outfile;
+	// outfile.open("/global/homes/r/roguzsel/mso/tmp/08-del/01-sp2/graph-sp2");	
+	// for (int64_t v = 1; v <= nv; ++v)
+	// {
+	// 	outfile << v << ": ";
+	// 	for (int_t i = xadj[v]; i < xadj[v+1]; ++i)
+	// 		outfile << "(" << adj[i] << "," << ew[i] << ") ";
+	// 	outfile << "\n";
+	// }
+	
+
+	return;
+}
+
+
+
+
+
+// assumes symmetry and weights
+// forms structures according to suitor library to bypass conversion
+static
+void
+form_graph_sp3_par
+(
+	int32_t	  n,
+	int32_t	  nnz,
+	int_t	  colptr[],
+	int_t	  adjncy[],
+	double	  nzval[],
+	int32_t	 *g_nv,
+	int32_t **g_xadj,
+	int32_t **g_adj,
+	double	**g_ew
+)
+{
+	*g_nv	   = 2*n;
+	int32_t nv = *g_nv;
+
+	// find size of adj lists
+	*g_xadj = (int32_t *) calloc(nv+3, sizeof(**g_xadj));
+	int32_t *xadj = (*g_xadj) + 3;
+
+	#pragma omp parallel for
+	for (int32_t c = 0; c < n; ++c)
+	{
+		for (int32_t rptr = colptr[c]; rptr < colptr[c+1]; ++rptr)
+		{
+			int32_t r = adjncy[rptr];
+			double	v = nzval[rptr];
+
+			if (v == 0.0)
+				continue;
+
+			if (r == c)
+				++(xadj[n+c]);
+
+			++(xadj[c]);
+		}
+	}
+
+	
+	
+	// prefix sum to get beg/end pointers
+	for (int32_t i = 0; i < nv; ++i)
+		xadj[i] += xadj[i-1];
+
+
+	// allocate
+	*g_adj		 = (int32_t *) malloc(sizeof(**g_adj) * (xadj[nv-1]));
+	*g_ew		 = (double *) malloc(sizeof(**g_ew) * (xadj[nv-1]));
+	int32_t *adj = *g_adj;
+	double	*ew	 = *g_ew;	
+
+
+	// fill adj and ew, finalize xadj
+	--xadj;
+	#pragma omp parallel for
+	for (int32_t c = 0; c < n; ++c)
+	{
+		for (int32_t rptr = colptr[c]; rptr < colptr[c+1]; ++rptr)
+		{
+			int32_t r = adjncy[rptr];
+			double	v = nzval[rptr];
+
+			if (v == 0.0)
+				continue;
+
+			v = fabs(v);
+
+			if (r == c)
+			{
+				adj[xadj[c+n]] = r+1; // 1-based
+				ew[xadj[c+n]]  = v;
+				++(xadj[c+n]);
+
+				adj[xadj[c]] = r+n+1; // 1-based
+				ew[xadj[c]]  = v;
+				++(xadj[c]);
+			}
+			else
+			{
+				adj[xadj[c]] = r+1; // 1-based
+				ew[xadj[c]]  = 2*v;
+				++(xadj[c]);
+			}
+		}
+	}
+
+
+	cout << "#vertices " << nv
+		 << " #edges " << xadj[nv-1]
+		 << endl;
+
+	// ofstream outfile;
+	// outfile.open("/global/homes/r/roguzsel/mso/tmp/08-del/02-sp3/graph-sp3");
+	// xadj -= 2;
+	// for (int64_t v = 1; v <= nv; ++v)
+	// {
+	// 	outfile << v << ": ";
+	// 	for (int_t i = xadj[v]; i < xadj[v+1]; ++i)
+	// 		outfile << "(" << adj[i] << "," << ew[i] << ") ";
+	// 	outfile << "\n";
+	// }
 	
 
 	return;
@@ -764,8 +891,10 @@ dldperm_dist_symatch_v3
 	// form directly from sparse matrix
 	int32_t nv, *xadj, *adj;
 	double *ew;
-	form_graph_sp2(n, nnz, colptr, adjncy, nzval,
-				   &nv, &xadj, &adj, &ew);
+	// form_graph_sp2(n, nnz, colptr, adjncy, nzval,
+	// 			   &nv, &xadj, &adj, &ew);
+	form_graph_sp3_par(n, nnz, colptr, adjncy, nzval,
+					   &nv, &xadj, &adj, &ew);
 
 	tmr_gm_form.stop_timer();
 
