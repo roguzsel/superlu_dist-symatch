@@ -285,6 +285,108 @@ form_graph_sp
 
 
 // assumes symmetry and weights
+static
+void
+form_graph_sp_par
+(
+	int32_t	  n,
+	int32_t	  nnz,
+	int_t	  colptr[],
+	int_t	  adjncy[],
+	double	  nzval[],
+	int32_t	 *g_nv,
+	int32_t **g_xadj,
+	int32_t **g_adj,
+	double	**g_ew
+)
+{
+	*g_nv	   = 2*n;
+	int32_t nv = *g_nv;
+
+	// find size of adj lists
+	*g_xadj = (int32_t *) calloc(nv+2, sizeof(**g_xadj));
+	int32_t *xadj = (*g_xadj) + 2;
+
+	#pragma omp parallel for
+	for (int32_t c = 0; c < n; ++c)
+	{
+		for (int32_t rptr = colptr[c]; rptr < colptr[c+1]; ++rptr)
+		{
+			int32_t r = adjncy[rptr];
+			double	v = nzval[rptr];
+
+			if (v == 0.0)
+				continue;
+
+			if (r == c)
+				++(xadj[n+c]);
+
+			++(xadj[c]);
+		}
+	}
+
+
+
+	// prefix sum to get beg/end pointers
+	for (int32_t i = 0; i < nv; ++i)
+		xadj[i] += xadj[i-1];
+
+
+	// allocate
+	*g_adj		 = (int32_t *) malloc(sizeof(**g_adj) * (xadj[nv-1]));
+	*g_ew		 = (double *) malloc(sizeof(**g_ew) * (xadj[nv-1]));
+	int32_t *adj = *g_adj;
+	double	*ew	 = *g_ew;	
+
+
+	// fill adj and ew, finalize xadj
+	--xadj;
+	#pragma omp parallel for
+	for (int32_t c = 0; c < n; ++c)
+	{
+		for (int32_t rptr = colptr[c]; rptr < colptr[c+1]; ++rptr)
+		{
+			int32_t r = adjncy[rptr];
+			double	v = nzval[rptr];
+
+			if (v == 0.0)
+				continue;
+
+			v = fabs(v);
+
+			if (r == c)
+			{
+				adj[xadj[c+n]] = r;
+				ew[xadj[c+n]]  = v;
+				++(xadj[c+n]);
+
+				adj[xadj[c]] = r+n;
+				ew[xadj[c]]  = v;
+				++(xadj[c]);
+			}
+			else
+			{
+				adj[xadj[c]] = r;
+				ew[xadj[c]]  = 2*v;
+				++(xadj[c]);
+			}
+		}
+	}
+
+
+	cout << "#vertices " << nv
+		 << " #edges " << xadj[nv-1]
+		 << endl;
+	
+
+	return;
+}
+
+
+
+
+
+// assumes symmetry and weights
 // forms structures according to suitor library to bypass conversion
 static
 void
@@ -1304,8 +1406,10 @@ dldperm_dist_symatch_g
 	// form directly from sparse matrix
 	int32_t nv, *xadj, *adj;
 	double *ew;
-	form_graph_sp(n, nnz, colptr, adjncy, nzval,
-				  &nv, &xadj, &adj, &ew);
+	// form_graph_sp(n, nnz, colptr, adjncy, nzval,
+	// 			  &nv, &xadj, &adj, &ew);
+	form_graph_sp_par(n, nnz, colptr, adjncy, nzval,
+					  &nv, &xadj, &adj, &ew);
 
 	tmr_gm_form.stop_timer();
 	
