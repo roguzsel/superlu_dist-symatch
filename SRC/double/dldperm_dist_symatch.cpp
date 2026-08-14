@@ -3,6 +3,7 @@
 #include <cfloat>
 #include <chrono>
 #include <climits>
+#include <cstdlib>
 #include <execution>
 #include <iostream>
 #include <limits>
@@ -1018,7 +1019,9 @@ dldperm_dist_symatch_v3
 		 << " max " << omp_get_max_threads()
 		 << endl;
 
-	int symalg = atoi(getenv("SYM_ALG"));
+	int symalg = 0;
+	if (const char *symalg_env = std::getenv("SYM_ALG"))
+		symalg = std::atoi(symalg_env);
 	SyMatch::WrMatch *wrm = nullptr;
 
 	tmr_match.start_timer();

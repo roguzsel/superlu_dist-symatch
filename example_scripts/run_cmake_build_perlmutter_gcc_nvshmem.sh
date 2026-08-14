@@ -28,9 +28,11 @@
 
 # module load cpe/23.03
 module load PrgEnv-gnu
+module load gcc-native/12.3
 # module load gcc/11.2.0
 module load cmake
 module load cudatoolkit
+module load nccl
 # avoid bug in cray-libsci/21.08.1.2
 # module load cray-libsci/22.11.1.2
 module load cray-libsci
@@ -45,7 +47,7 @@ NVSHMEM_HOME=/global/cfs/cdirs/m2957/lib/lib/PrgEnv-gnu/nvshmem_src_2.8.0-3/buil
 #NVSHMEM_HOME=${CRAY_NVIDIA_PREFIX}/comm_libs/nvshmem/
 cmake .. \
   -DCMAKE_C_FLAGS="-O2 -std=c11 -DPRNTlevel=0 -DPROFlevel=0 -DDEBUGlevel=0 -DAdd_" \
-  -DCMAKE_CXX_FLAGS="-O2 -std=c++14" \
+  -DCMAKE_CXX_FLAGS="-O2 -std=c++14 -DMULTIPHASE -DPRINT -DNGPU=1 -DUSE_32BIT_GRAPH" \
   -DCMAKE_Fortran_FLAGS="-O2" \
   -DCMAKE_CXX_COMPILER=CC \
   -DCMAKE_C_COMPILER=cc \
@@ -76,8 +78,12 @@ cmake .. \
   -DMPIEXEC_EXECUTABLE=/usr/bin/srun \
   -DMPIEXEC_MAX_NUMPROCS=16 \
   -DTPL_ENABLE_SYMATCHLIB=ON \
-  -DTPL_SYMATCH_INCLUDE_DIRS="$CFS/m2957/liuyangz/my_research/superlu_dist-symatch/matching/symatch/inc;$CFS/m2957/liuyangz/my_research/superlu_dist-symatch/matching/symatch/util;$CFS/m2957/liuyangz/my_research/superlu_dist-symatch/matching/lib/matching" \
-  -DTPL_SYMATCH_LIBRARIES="$CFS/m2957/liuyangz/my_research/superlu_dist-symatch//matching/lib/matching/lib/libsuitor.a"  
+  -DTPL_ENABLE_SUMAC=ON \
+  -DTPL_ENABLE_MC80=ON \
+  -DTPL_SYMATCH_INCLUDE_DIRS="$CFS/m2957/liuyangz/my_research/superlu_dist-symatch/matching/symatch/inc;$CFS/m2957/liuyangz/my_research/superlu_dist-symatch/matching/symatch/util;$CFS/m2957/liuyangz/my_research/superlu_dist-symatch/matching/lib/matching;$CFS/m2957/liuyangz/my_research/superlu_dist-symatch/matching/lib/sumac" \
+  -DTPL_SYMATCH_LIBRARIES="$CFS/m2957/liuyangz/my_research/superlu_dist-symatch/matching/lib/matching/lib/libsuitor.a;${NCCL_HOME}/lib/libnccl.so;$CFS/m2957/liuyangz/my_research/superlu_dist-symatch/matching/lib/sumac/libsumac.a" \
+  -DTPL_MC80_INCLUDE_DIRS="$CFS/m2957/liuyangz/my_research/superlu_dist-symatch/matching/lib/hsl_mc80-1.1.4/include" \
+  -DTPL_MC80_LIBRARIES="$CFS/m2957/liuyangz/my_research/superlu_dist-symatch/matching/lib/hsl_mc80-1.1.4/build/lib/libhsl_mc80.a"
 
 make pddrive -j16
 make pddrive3d -j16
